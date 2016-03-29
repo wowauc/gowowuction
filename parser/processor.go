@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/gourytch/gowowuction/config"
-	util "github.com/gourytch/gowowuction/util"
+	config "github.com/wowauc/gowowuction/config"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 type AuctionState struct {

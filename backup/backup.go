@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	util "github.com/gourytch/gowowuction/util"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 func MakeTarball(tarname string, fnames []string) error {

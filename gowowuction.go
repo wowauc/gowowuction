@@ -4,11 +4,11 @@ import (
 	"log"
 	"os"
 
-	backup "github.com/gourytch/gowowuction/backup"
-	config "github.com/gourytch/gowowuction/config"
-	fetcher "github.com/gourytch/gowowuction/fetcher"
-	parser "github.com/gourytch/gowowuction/parser"
-	util "github.com/gourytch/gowowuction/util"
+	backup "github.com/wowauc/gowowuction/backup"
+	config "github.com/wowauc/gowowuction/config"
+	fetcher "github.com/wowauc/gowowuction/fetcher"
+	parser "github.com/wowauc/gowowuction/parser"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 func DoFetch(cf *config.Config) {

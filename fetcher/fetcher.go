@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/gourytch/gowowuction/config"
+	config "github.com/wowauc/gowowuction/config"
 )
 
 type FDesc struct {

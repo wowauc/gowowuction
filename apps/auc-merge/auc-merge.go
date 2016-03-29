@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gourytch/gowowuction/util"
+	"github.com/wowauc/gowowuction/util"
 	"golang.org/x/crypto/ssh" //see https://gist.github.com/jedy/3357393
 )
 

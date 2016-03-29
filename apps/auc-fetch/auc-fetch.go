@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	config "github.com/gourytch/gowowuction/config"
-	fetcher "github.com/gourytch/gowowuction/fetcher"
-	util "github.com/gourytch/gowowuction/util"
+	config "github.com/wowauc/gowowuction/config"
+	fetcher "github.com/wowauc/gowowuction/fetcher"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 func DoFetch(cf *config.Config) {

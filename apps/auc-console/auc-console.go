@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/gourytch/gowowuction/util"
 	"github.com/kr/pty"
+	"github.com/wowauc/gowowuction/util"
 	"golang.org/x/crypto/ssh"
 )
 

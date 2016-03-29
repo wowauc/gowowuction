@@ -5,11 +5,11 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
-//	"regexp"
+	//	"regexp"
 	"strings"
 	"time"
 
-	util "github.com/gourytch/gowowuction/util"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 const SLASH = filepath.Separator

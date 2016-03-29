@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	config "github.com/gourytch/gowowuction/config"
-	util "github.com/gourytch/gowowuction/util"
+	config "github.com/wowauc/gowowuction/config"
+	util "github.com/wowauc/gowowuction/util"
 )
 
 const TRIM_COUNT = 0
