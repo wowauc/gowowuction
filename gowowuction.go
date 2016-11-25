@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"log"
 	"os"
+	"time"
 
 	backup "github.com/wowauc/gowowuction/backup"
 	config "github.com/wowauc/gowowuction/config"
@@ -17,14 +19,25 @@ func DoFetch(cf *config.Config) {
 	s.Config = cf
 	for _, realm := range cf.RealmsList {
 		for _, locale := range cf.LocalesList {
-			file_url, file_ts := s.Fetch_FileURL(realm, locale)
+			file_url, file_ts, err := s.Fetch_FileURL(realm, locale)
+			if err != nil {
+				log.Printf("[!] NO FILE URL FOR realm=%#v locale=%#v ", realm, locale)
+				continue
+			}
+			if file_url == "" {
+				log.Printf("[i] NO FILES FOR realm=%#v locale=%#v", realm, locale)
+				continue
+			}
 			log.Printf("FILE URL: %s", file_url)
 			log.Printf("FILE PIT: %s / %s", file_ts, util.TSStr(file_ts.UTC()))
 			fname := util.Make_FName(realm, file_ts, true)
 			json_fname := cf.DownloadDirectory + fname
 			if !util.CheckFile(json_fname) {
 				log.Printf("downloading from %s ...", file_url)
-				data := s.Get(file_url)
+				data, err := s.Get(file_url)
+				if err != nil {
+					log.Printf("[!] DATA NOT RETRIEVED FOR realm=%#v locale=%#v", realm, locale)
+				}
 				log.Printf("... got %d octets", len(data))
 				zdata := util.Zip(data)
 				log.Printf("... zipped to %d octets (%d%%)",
@@ -50,25 +63,37 @@ func DoParse(cf *config.Config) {
 func DoBackup(cf *config.Config) {
 	log.Println("=== BACKUP BEGIN ===")
 	srcdir := cf.DownloadDirectory
-	dstdir := cf.TempDirectory + "/backup"
+	dstdir := cf.BackupDirectory
 	util.CheckDir(dstdir)
-	backup.Backup(srcdir, dstdir, "20060102", "")
-	//backup.Backup(srcdir, dstdir, "20060102", ".tar.gz")
-	backup.Backup(srcdir, dstdir, "20060102", ".zip")
+	//backup.Backup(srcdir, dstdir, "20060102", "", true, false)
+	backup.Backup(srcdir, dstdir, "20060102", ".tar.gz", true, false)
+	//backup.Backup(srcdir, dstdir, "20060102", ".tar.xz", true, false)
+	backup.Backup(srcdir, dstdir, "20060102", ".zip", true, false)
 	log.Println("=== BACKUP END ===")
 }
 
 func main() {
-	log.Println("start")
+	log.Println("preinitialize ...")
 	cf, err := config.AppConfig()
 	if err != nil {
 		log.Fatalln("config load error: ", err)
 	}
+	util.CheckDir(cf.LogDirectory)
+	logname := cf.GetLogFName(true)
+	logf, err := os.OpenFile(logname, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		log.Printf("[!] log file %s not opened: %s", logname, err)
+	} else {
+		defer logf.Close()
+		log.SetOutput(io.MultiWriter(logf, os.Stdout))
+	}
 
+	log.Println("=== application started at " + util.TSStr(time.Now()))
 	cf.Dump()
 
 	util.CheckDir(cf.DownloadDirectory)
 	util.CheckDir(cf.ResultDirectory)
+	util.CheckDir(cf.BackupDirectory)
 
 	if len(os.Args) == 0 {
 		DoFetch(cf)
@@ -82,9 +107,9 @@ func main() {
 			case "backup":
 				DoBackup(cf)
 			default:
-				log.Fatalf("unknown arg: \"%s\"", arg)
+				log.Printf("unknown arg: \"%s\"", arg)
 			}
 		}
 	}
-	log.Println("done")
+	log.Println("=== application finished at " + util.TSStr(time.Now()))
 }

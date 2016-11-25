@@ -3,6 +3,9 @@ package util
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/md5"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -81,12 +84,12 @@ func AppDir() string {
 	return dir
 }
 
-func AppBaseFileName() string { 
-/* 
-name with full pathname but without extension
-c:\Apps\MyFile.exe -> c:\Apps\MyFile
-/tmp/zzzz -> /tmp/zzz
-*/
+func AppBaseFileName() string {
+	/*
+	   name with full pathname but without extension
+	   c:\Apps\MyFile.exe -> c:\Apps\MyFile
+	   /tmp/zzzz -> /tmp/zzz
+	*/
 	r, _ := regexp.Compile("^(.*?)(?:\\.exe|\\.EXE|)$")
 	return r.FindStringSubmatch(ExeName())[1]
 }
@@ -185,4 +188,16 @@ func Load(fname string) (data []byte, err error) {
 		return s, nil
 	}
 	return ioutil.ReadFile(fname)
+}
+
+func MakeMD5(data []byte) string {
+	hasher := md5.New()
+	hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func MakeSHA1(data []byte) string {
+	hasher := sha1.New()
+	hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
 }
