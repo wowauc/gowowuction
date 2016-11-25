@@ -46,12 +46,20 @@ func (s *Session) Get(url string) (body []byte, err error) {
 		return
 	}
 	request.Header.Add("Accept-Encoding", "gzip")
+	log.Printf("GET %s", url)
 	response, err := s.Client.Do(request)
 	if err != nil {
-		log.Printf("[!] request failed: %s", url, err)
+		log.Printf("[!] request failed: %s", err)
 		return
 	}
 	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		msg := fmt.Sprintf("status code %d != 200 : %s",
+			response.StatusCode, response.Status)
+		err = errors.New(msg)
+		log.Printf("[!] " + msg)
+		return
+	}
 
 	// Check that the server actually sent compressed data
 	var reader io.ReadCloser
@@ -59,7 +67,7 @@ func (s *Session) Get(url string) (body []byte, err error) {
 	case "gzip":
 		reader, err = gzip.NewReader(response.Body)
 		if err != nil {
-			log.Printf("[!] gzip reader failed: %s", url, err)
+			log.Printf("[!] gzip reader failed: %s", err)
 			return
 		}
 		defer reader.Close()
@@ -68,7 +76,7 @@ func (s *Session) Get(url string) (body []byte, err error) {
 	}
 	body, err = ioutil.ReadAll(reader)
 	if err != nil {
-		log.Printf("[!] request read failed: %s", url, err)
+		log.Printf("[!] request read failed: %s", err)
 		return
 	}
 	return
@@ -88,7 +96,6 @@ func (s *Session) Fetch_FileURL(realm string, locale string) (url string, ts tim
 	var data []byte
 	url = fmt.Sprintf("https://%s.api.battle.net/wow/auction/data/%s?locale=%s&apikey=%s",
 		v[0], v[1], locale, s.Config.APIKey)
-	log.Printf("GET %s ...", url)
 	data, err = s.Get(url)
 	if err != nil {
 		log.Printf("[!] GET request failed for %s ...", url)

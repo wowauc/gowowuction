@@ -109,23 +109,13 @@ func MakeTarball(tarname string, fnames []string) error {
 	return nil
 }
 
-func dos_date(ts time.Time) uint16 {
-	y, m, d := ts.Date()
-	return (uint16(y) << 9) + (uint16(m-time.January) << 5) + uint16(d)
-}
-
-func dos_time(ts time.Time) uint16 {
-	h, m, s := ts.Clock()
-	return (uint16(h) << 11) + (uint16(m) << 5) + uint16(s/2)
-}
-
 func zip_it(zipwriter *zip.Writer, data []byte, name string, ts time.Time) error {
 	header := &zip.FileHeader{
-		Name:         name,
-		Method:       zip.Deflate,
-		ModifiedTime: dos_time(ts),
-		ModifiedDate: dos_date(ts),
+		Name:   name,
+		Method: zip.Deflate,
 	}
+	header.SetModTime(ts)
+	header.SetMode(0644)
 	f, err := zipwriter.CreateHeader(header)
 
 	if err != nil {
