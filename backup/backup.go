@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	parser "github.com/wowauc/gowowuction/parser"
+
 	//gzip "github.com/klauspost/compress/gzip"
 	//gzip "github.com/klauspost/pgzip"
 	//zip "github.com/klauspost/compress/zip"
@@ -22,6 +24,14 @@ import (
 
 	util "github.com/wowauc/gowowuction/util"
 )
+
+func validate_blob(data []byte) error {
+	if _, err := parser.ParseSnapshot(data); err != nil {
+		log.Printf("[!] %s", err)
+		return err
+	}
+	return nil
+}
 
 func tar_it(tarwriter *tar.Writer, data []byte, name string, ts time.Time) error {
 	hdr := new(tar.Header)
@@ -41,13 +51,28 @@ func tar_it(tarwriter *tar.Writer, data []byte, name string, ts time.Time) error
 	return nil
 }
 
-func MakeTarball(tarname string, fnames []string) error {
+func MakeTarball(tarname string, fnames []string) (skiplist []string, err error) {
+	skiplist = []string{}
+	tmpname := tarname + ".tmp"
 	log.Printf("tarring %d entrires to %s ...", len(fnames), tarname)
-	tarfile, err := os.Create(tarname)
+	tarfile, err := os.Create(tmpname)
 	if err != nil {
-		return err
+		return
 	}
-	defer tarfile.Close()
+	empty := true
+
+	defer func() {
+		tarfile.Close()
+		if empty {
+			if err := os.Remove(tmpname); err != nil {
+				log.Printf("[!] deferred routine error for empty file: %s", err)
+			} else {
+				log.Printf("empty archive removed")
+			}
+		} else if err := util.Rotate(tarname); err != nil {
+			log.Printf("[!] deferred routine error: %s", err)
+		}
+	}()
 	var tarwriter *tar.Writer
 	if strings.HasSuffix(tarname, ".gz") {
 		zipper := gzip.NewWriter(tarfile)
@@ -59,7 +84,7 @@ func MakeTarball(tarname string, fnames []string) error {
 	} else if strings.HasSuffix(tarname, ".xz") {
 		zipper, err := xz.NewWriter(tarfile)
 		if err != nil {
-			return err
+			return skiplist, err
 		}
 		defer zipper.Close()
 		tarwriter = tar.NewWriter(zipper)
@@ -82,31 +107,54 @@ func MakeTarball(tarname string, fnames []string) error {
 		realm, ts, good := util.Parse_FName(fname)
 		if !good {
 			log.Printf("warning: skip ill-named file '%s'", fname)
+			skiplist = append(skiplist, fname)
 			continue // skip
 		}
 		data, err := util.Load(fname)
 		if err != nil {
-			return err
+			log.Printf("[!]: skip unloadable file %s: error %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
+		}
+		if err := validate_blob(data); err != nil {
+			log.Printf("[!]: skip bad blob from file %s: %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
 		}
 		name := util.Make_FName(realm, ts, false)
 		fmt.Fprintln(&md5sum, util.MakeMD5(data), name)
 		fmt.Fprintln(&sha1sum, util.MakeSHA1(data), name)
-		if err := tar_it(tarwriter, data, name, ts); err != nil {
-			return err
+		if err = tar_it(tarwriter, data, name, ts); err != nil {
+			log.Printf("[!]: cannot tar %s: %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
+		}
+		empty = false // at least one file stored
+	}
+	if !empty {
+		ts := time.Now()
+		if err = tar_it(tarwriter, md5sum.Bytes(), "md5sum.txt", ts); err != nil {
+			log.Printf("[!]: cannot tar md5sum.txt: %s", err)
+			return skiplist, err
+		}
+		if err = tar_it(tarwriter, sha1sum.Bytes(), "sha1sum.txt", ts); err != nil {
+			log.Printf("[!]: cannot tar sha1sum.txt: %s", err)
+			return skiplist, err
 		}
 	}
-	ts := time.Now()
-	if err := tar_it(tarwriter, md5sum.Bytes(), "md5sum.txt", ts); err != nil {
-		return err
+	if err = tarwriter.Flush(); err != nil {
+		log.Printf("[!]: cannot flush tarball: %s", err)
+		return skiplist, err
 	}
-	if err := tar_it(tarwriter, sha1sum.Bytes(), "sha1sum.txt", ts); err != nil {
-		return err
+	if len(skiplist) == 0 {
+		log.Printf("%s tarred without errors", tarname)
+	} else {
+		log.Printf("%s tarred with %d issue(s)", tarname, len(skiplist))
+		for _, fname := range skiplist {
+			log.Printf("...  not tarred: %s", fname)
+		}
 	}
-	if err := tarwriter.Flush(); err != nil {
-		return err
-	}
-	log.Printf("%s tarred without errors", tarname)
-	return nil
+	return skiplist, err
 }
 
 func zip_it(zipwriter *zip.Writer, data []byte, name string, ts time.Time) error {
@@ -129,13 +177,28 @@ func zip_it(zipwriter *zip.Writer, data []byte, name string, ts time.Time) error
 	return nil
 }
 
-func MakeZip(zipname string, fnames []string) error {
+func MakeZip(zipname string, fnames []string) (skiplist []string, err error) {
+	skiplist = []string{}
+	tmpname := zipname + ".tmp"
 	log.Printf("zipping %d entrires to %s ...", len(fnames), zipname)
-	zipfile, err := os.Create(zipname)
+	zipfile, err := os.Create(tmpname)
 	if err != nil {
-		return err
+		return skiplist, err
 	}
-	defer zipfile.Close()
+	empty := true
+	defer func() {
+		zipfile.Close()
+		if empty {
+			if err := os.Remove(tmpname); err != nil {
+				log.Printf("[!] deferred routine error for empty file: %s", err)
+			} else {
+				log.Printf("empty archive removed")
+			}
+		} else if err := util.Rotate(zipname); err != nil {
+			log.Printf("[!] deferred routine error: %s", err)
+		}
+	}()
+
 	zipwriter := zip.NewWriter(zipfile)
 	defer zipwriter.Close()
 
@@ -146,31 +209,54 @@ func MakeZip(zipname string, fnames []string) error {
 		realm, ts, good := util.Parse_FName(fname)
 		if !good {
 			log.Printf("warning: skip ill-named file '%s'", fname)
+			skiplist = append(skiplist, fname)
 			continue // skip
 		}
 		data, err := util.Load(fname)
 		if err != nil {
-			return err
+			log.Printf("[!]: skip unloadable file %s: error %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
+		}
+		if err := validate_blob(data); err != nil {
+			log.Printf("[!]: skip bad blob from file %s: %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
 		}
 		name := util.Make_FName(realm, ts, false)
 		fmt.Fprintln(&md5sum, util.MakeMD5(data), name)
 		fmt.Fprintln(&sha1sum, util.MakeSHA1(data), name)
 		if err := zip_it(zipwriter, data, name, ts); err != nil {
-			return err
+			log.Printf("[!]: cannot zip %s: %s", fname, err)
+			skiplist = append(skiplist, fname)
+			continue // skip
+		}
+		empty = false // at least one file stored
+	}
+	if !empty {
+		ts := time.Now()
+		if err = zip_it(zipwriter, md5sum.Bytes(), "md5sum.txt", ts); err != nil {
+			log.Printf("[!]: cannot zip md5sum.txt: %s", err)
+			return skiplist, err
+		}
+		if err = zip_it(zipwriter, sha1sum.Bytes(), "sha1sum.txt", ts); err != nil {
+			log.Printf("[!]: cannot zip sha1sum.txt: %s", err)
+			return skiplist, err
 		}
 	}
-	ts := time.Now()
-	if err := zip_it(zipwriter, md5sum.Bytes(), "md5sum.txt", ts); err != nil {
-		return err
+	if err = zipwriter.Flush(); err != nil {
+		log.Printf("[!]: cannot flush zip: %s", err)
+		return skiplist, err
 	}
-	if err := zip_it(zipwriter, sha1sum.Bytes(), "sha1sum.txt", ts); err != nil {
-		return err
+	if len(skiplist) == 0 {
+		log.Printf("%s zipped without errors", zipname)
+	} else {
+		log.Printf("%s zipped with %d issue(s)", zipname, len(skiplist))
+		for _, fname := range skiplist {
+			log.Printf("...  not zipped: %s", fname)
+		}
 	}
-	if err := zipwriter.Flush(); err != nil {
-		return err
-	}
-	log.Printf("%s zipped without errors", zipname)
-	return nil
+	return skiplist, err
 }
 
 func Backup(srcdir, dstdir, timeformat, ext string, completeOnly bool, doMove bool) {
@@ -231,36 +317,49 @@ func Backup(srcdir, dstdir, timeformat, ext string, completeOnly bool, doMove bo
 		}
 		sort.Sort(util.ByContent(keys))
 		for _, key := range keys {
+			var skiplist []string
+			var err error
 			fnames := rmap[rlm][key]
 			log.Printf("backup %d entries for %s ...", len(fnames), key)
 			sort.Sort(util.ByBasename(fnames))
 			if ext == ".tar.gz" {
 				tarname := dstdir + "/" + key + ext
-				err := MakeTarball(tarname, fnames)
+				skiplist, err = MakeTarball(tarname, fnames)
 				if err != nil {
 					log.Printf("[!] MakeTarball(%s) failed: %s", tarname, err)
 					continue
 				}
 			} else if ext == ".tar.xz" {
 				tarname := dstdir + "/" + key + ext
-				err := MakeTarball(tarname, fnames)
+				skiplist, err = MakeTarball(tarname, fnames)
 				if err != nil {
 					log.Printf("[!] MakeTarball(%s) failed: %s", tarname, err)
 					continue
 				}
 			} else if ext == ".zip" {
 				zipname := dstdir + "/" + key + ext
-				err := MakeZip(zipname, fnames)
+				skiplist, err = MakeZip(zipname, fnames)
 				if err != nil {
 					log.Printf("[!] MakeZip(%s) failed: %s", zipname, err)
 					continue
 				}
 			}
 			if doMove {
+				skipped := make(map[string]bool)
+				for _, name := range skiplist {
+					skipped[name] = true
+				}
 				log.Printf("remove %d backed entries...", len(fnames))
 				for _, fname := range fnames {
-					if err := os.Remove(fname); err != nil {
-						log.Printf("[!] remove(%s) failed: %s", fname, err)
+					if skipped[fname] {
+						log.Printf("   %s is bad, so rename it", fname)
+						if err := os.Rename(fname, fname+".bad"); err != nil {
+							log.Printf("[!] rename(%s) failed: %s", fname, err)
+						}
+					} else {
+						if err := os.Remove(fname); err != nil {
+							log.Printf("[!] remove(%s) failed: %s", fname, err)
+						}
 					}
 				}
 			}

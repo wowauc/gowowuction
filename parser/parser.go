@@ -2,6 +2,7 @@ package parser
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 /*
@@ -21,11 +22,24 @@ func ParseAuction(data *RawAuctionData) (r *Auction) {
 	return
 }
 */
+var MalformedBlob error = errors.New("Blob is malformed")
 
 func ParseSnapshot(data []byte) (snapshot *SnapshotData, err error) {
 	snapshot = new(SnapshotData)
 	err = json.Unmarshal(data, snapshot)
-	return snapshot, err
+	if err != nil {
+		return nil, err
+	}
+	if snapshot.Realms == nil {
+		return nil, MalformedBlob
+	}
+	if len(snapshot.Realms) == 0 {
+		return nil, MalformedBlob
+	}
+	if snapshot.Auctions == nil {
+		return nil, MalformedBlob
+	}
+	return snapshot, nil
 }
 
 func MakeBaseAuction(auc *Auction) (bse *BaseAuction) {

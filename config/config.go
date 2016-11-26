@@ -23,8 +23,11 @@ type Config struct {
 	TempDirectory     string   `json:"temp_dir"`
 	ResultDirectory   string   `json:"result_dir"`
 	BackupDirectory   string   `json:"backup_dir"`
+	BackupExt         string   `json:"backup_ext"`
 	NameFormat        string   `json:"name_format"`
 	TimedNameFormat   string   `json:"timed_name_format"`
+	BackupWithoutLast bool     `json:"backup_without_last"`
+	RemoveAfterBackup bool     `json:"remove_after_backup"`
 }
 
 func defaultConfig() *Config {
@@ -37,8 +40,11 @@ func defaultConfig() *Config {
 	cf.TempDirectory = "data/tmp"
 	cf.ResultDirectory = "data/result"
 	cf.BackupDirectory = "data/backup"
+	cf.BackupExt = ".zip"
 	cf.NameFormat = "{realm}-{name}"
 	cf.TimedNameFormat = "2006_01-{realm}-{name}" // split by month
+	cf.BackupWithoutLast = false
+	cf.RemoveAfterBackup = false
 	return cf
 }
 
@@ -50,8 +56,11 @@ func (cf *Config) Dump() {
 	log.Println("DownloadDirectory: ", cf.DownloadDirectory)
 	log.Println("TempDirectory: ", cf.TempDirectory)
 	log.Println("ResultDirectory: ", cf.ResultDirectory)
+	log.Println("BackupDirectory: ", cf.BackupDirectory)
 	log.Println("NameFormat:", cf.NameFormat)
 	log.Println("TimedNameFormat:", cf.TimedNameFormat)
+	log.Println("BackupWithoutLast: ", cf.BackupWithoutLast)
+	log.Println("RemoveAfterBackup: ", cf.RemoveAfterBackup)
 }
 
 func (cf *Config) GetTimedName(name string, realm string, ts time.Time) string {
@@ -96,7 +105,15 @@ func (cf *Config) GetLogFName(daily bool) string {
 	return cf.LogDirectory + string(SLASH) + name + ".log"
 }
 
-func load(fname string) (*Config, error) {
+func (cf *Config) Save(fname string) error {
+	data, err := json.MarshalIndent(cf, "", "    ")
+	if err != nil {
+		log.Fatalf("json failed: %s", err)
+	}
+	return util.Store(fname, data)
+}
+
+func Load(fname string) (*Config, error) {
 	dflt := defaultConfig()
 	cf := new(Config)
 	data, err := ioutil.ReadFile(fname)
@@ -117,6 +134,9 @@ func load(fname string) (*Config, error) {
 	cf.TempDirectory = fixD(cf.TempDirectory, dflt.TempDirectory, basedir)
 	cf.ResultDirectory = fixD(cf.ResultDirectory, dflt.ResultDirectory, basedir)
 	cf.BackupDirectory = fixD(cf.BackupDirectory, dflt.BackupDirectory, basedir)
+	if cf.BackupExt == "" {
+		cf.BackupExt = dflt.BackupExt
+	}
 	if cf.NameFormat == "" {
 		cf.NameFormat = dflt.NameFormat
 	}
@@ -128,10 +148,14 @@ func load(fname string) (*Config, error) {
 	return cf, nil
 }
 
+func ConfigName() string {
+	return util.AppBaseFileName() + ".config.json"
+}
+
 func AppConfig() (*Config, error) {
-	cfg_fname := util.AppBaseFileName() + ".config.json"
+	cfg_fname := ConfigName()
 	log.Println("config    : ", cfg_fname)
-	cf, err := load(cfg_fname)
+	cf, err := Load(cfg_fname)
 	if err != nil {
 		log.Fatalln("config load error: ", err)
 		return nil, err // unreachable

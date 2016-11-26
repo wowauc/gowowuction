@@ -201,3 +201,33 @@ func MakeSHA1(data []byte) string {
 	hasher.Write(data)
 	return hex.EncodeToString(hasher.Sum(nil))
 }
+
+func Rotate(fname string) error {
+	// rotate by rules:
+	// test -f fname.tmp || return
+	//
+	// test -f fname && {
+	//   test -f fname.bak && rm fname.bak
+	//   mv fname fname.bak
+	// }
+	// mv fname.tmp fname
+	tmpname := fname + ".tmp"
+	bakname := fname + ".bak"
+	if !CheckFile(tmpname) {
+		return os.ErrNotExist
+	}
+	if CheckFile(fname) {
+		if CheckFile(bakname) {
+			if err := os.Remove(bakname); err != nil {
+				return err
+			}
+		}
+		if err := os.Rename(fname, bakname); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(tmpname, fname); err != nil {
+		return err
+	}
+	return nil
+}

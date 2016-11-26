@@ -43,26 +43,9 @@ func DoFetch(cf *config.Config) {
 				log.Printf("validate snapshot data ...")
 				j, err := parser.ParseSnapshot(data)
 				if err != nil {
-					log.Printf("[!] json parse error: %s", err)
+					log.Printf("[!] %s", err)
 					continue
 				}
-				if j.Realms == nil {
-					log.Println("[!] Realms is nil")
-					continue
-				}
-				if len(j.Realms) == 0 {
-					log.Println("[!] Realms is empty")
-					continue
-				}
-				if j.Auctions == nil {
-					log.Println("[!] Auctions is nil")
-					continue
-				}
-				if len(j.Auctions) == 0 {
-					log.Println("[!] Auctions is empty")
-					continue
-				}
-
 				log.Printf("... data seems valid and contains %d auctions from %d realm(s).",
 					len(j.Auctions), len(j.Realms))
 				zdata := util.Zip(data)
@@ -90,11 +73,15 @@ func DoBackup(cf *config.Config) {
 	log.Println("=== BACKUP BEGIN ===")
 	srcdir := cf.DownloadDirectory
 	dstdir := cf.BackupDirectory
+	ext := cf.BackupExt
+	nolast := cf.BackupWithoutLast
+	clean := cf.RemoveAfterBackup
 	util.CheckDir(dstdir)
 	//backup.Backup(srcdir, dstdir, "20060102", "", true, false)
 	//backup.Backup(srcdir, dstdir, "20060102", ".tar.gz", true, false)
 	//backup.Backup(srcdir, dstdir, "20060102", ".tar.xz", true, false)
-	backup.Backup(srcdir, dstdir, "20060102", ".zip", true, false)
+	//backup.Backup(srcdir, dstdir, "20060102", ".zip", true, false)
+	backup.Backup(srcdir, dstdir, "20060102", ext, nolast, clean)
 	log.Println("=== BACKUP END ===")
 }
 
@@ -126,6 +113,8 @@ func main() {
 	} else {
 		for _, arg := range os.Args[1:] {
 			switch arg {
+			case "dfltcfg":
+				(cf).Save(config.ConfigName() + ".default")
 			case "fetch":
 				DoFetch(cf)
 			case "parse":
@@ -133,7 +122,7 @@ func main() {
 			case "backup":
 				DoBackup(cf)
 			default:
-				log.Printf("unknown arg: \"%s\"", arg)
+				log.Printf("unknown arg: \"%s\", must be one of [dfltcfg, fetch, parse, backup]", arg)
 			}
 		}
 	}
