@@ -36,6 +36,16 @@ func ProcessSnapshot(ss *SnapshotData) {
 	}
 }
 
+/******************************************************************************
+ * 1. populate datafile locations
+ *    from all datafiles (realm-*.json.gz)
+ *    and from backup files (realm-*.zip)
+ *    files from zip-files ase more important than ordinal datafiles
+ * 2. create AuctionProcessor for realm
+ * 3. process each entry from ordered list:
+ *    read & parse content
+ ******************************************************************************/
+
 func ParseDir(cf *config.Config, realm string, safe bool) {
 	mask := cf.DownloadDirectory +
 		strings.Replace(realm, ":", "-", -1) + "-*.json.gz"

@@ -49,7 +49,7 @@ func Parse_FName(fname string) (realm string, ts time.Time, good bool) {
 	good = false
 	// log.Printf("Parse_FName(%s)", fname)
 	name := filepath.Base(fname)
-	rx := regexp.MustCompile("^([^-]+)-([^-]+)-(\\d{8}_\\d{6})\\.json\\.gz$")
+	rx := regexp.MustCompile("^([^-]+)-([^-]+)-(\\d{8}_\\d{6})\\.json(\\.gz|\\.xz|)$")
 	v := rx.FindStringSubmatch(name)
 	if v == nil {
 		//log.Panicf("... not matched")

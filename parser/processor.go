@@ -13,22 +13,44 @@ import (
 	util "github.com/wowauc/gowowuction/util"
 )
 
+const (
+	FIELD_BID        = "bid"
+	FIELD_TIMELEFT   = "timeleft"
+	FIELD_DEADLINE   = "deadline"
+	FIELD_OWNER      = "owner"
+	FIELD_OWNERREALM = "owner_realm"
+)
+
+type Change struct {
+	TStamp string `json:"time"`
+	Field  string `json:"field"`
+	Before string `json:"from"`
+	After  string `json:"to"`
+}
+
+type ChangeList []Change
+type SeenList []string
+
 type AuctionState struct {
-	Created  time.Time `json:"created"`
-	DeadLine time.Time `json:"deadline"`
-	Updated  time.Time `json:"updated"`
-	Raised   bool      `json:"raised"` // bid change detected
-	Moved    bool      `json:"moved"`  // player renamed / moved
-	FirstBid int64     `json:"firstBid"`
-	LastBid  int64     `json:"lastBid"`
+	Created     time.Time  `json:"created"`
+	DeadLine    time.Time  `json:"deadline"`
+	Updated     time.Time  `json:"updated"`
+	Seenlist    SeenList   `json:"seenlist"`
+	Changlelist ChangeList `json:"changelist"`
+	Raised      bool       `json:"raised"` // bid change detected
+	Moved       bool       `json:"moved"`  // player renamed / moved
+	FirstBid    int64      `json:"firstBid"`
+	LastBid     int64      `json:"lastBid"`
 }
 
 type AuctionMeta struct {
-	Auc    int64     `json:"auc"`
-	Opened time.Time `json:"opened"`
-	Closed time.Time `json:"closed"`
-	Result string    `json:"result"`
-	Profit int64     `json:"profit"`
+	Auc        int64      `json:"auc"`
+	Opened     string     `json:"opened"`
+	Closed     string     `json:"closed"`
+	Seenlist   SeenList   `json:"seenlist"`
+	Changelist ChangeList `json:"changelist"`
+	Result     string     `json:"result"`
+	Profit     int64      `json:"profit"`
 }
 
 type WorkEntry struct {
@@ -48,27 +70,27 @@ type AuctionProcessorState struct {
 }
 
 type AuctionProcessor struct {
-	cf           *config.Config
-	StateFName   string
-	Realm        string
-	State        AuctionProcessorState
-	SnapshotTime time.Time
-	Started      bool
-	SeenSet      IdSetType
-	FileMeta     *os.File
-	FileAuc      *os.File
-	NumCreated   int
-	NumModified  int
-	NumBids      int
-	NumMoves     int
-	NumAdjusts   int
-	NumBought    int
-	NumAuctioned int
-	NumExpired   int
-
-	TotalOpened  int
-	TotalClosed  int
-	TotalSuccess int
+	cf                 *config.Config
+	StateFName         string
+	Realm              string
+	LastTimedStateName string
+	State              AuctionProcessorState
+	SnapshotTime       time.Time
+	Started            bool
+	SeenSet            IdSetType
+	FileMeta           *os.File
+	FileAuc            *os.File
+	NumCreated         int
+	NumModified        int
+	NumBids            int
+	NumMoves           int
+	NumAdjusts         int
+	NumBought          int
+	NumAuctioned       int
+	NumExpired         int
+	TotalOpened        int
+	TotalClosed        int
+	TotalSuccess       int
 }
 
 const (
@@ -115,6 +137,9 @@ func (prc *AuctionProcessor) createEntry(auc *Auction) {
 	var e WorkEntry
 	e.Entry = *auc
 	e.State.Created = prc.SnapshotTime
+	e.State.Changlelist = ChangeList{}
+	e.State.Seenlist = SeenList{util.TSStr(prc.SnapshotTime)}
+
 	dl_min, _ := guess_expiration(prc.SnapshotTime, e.Entry.TimeLeft)
 	var zeroTime time.Time
 	if prc.State.LastTime == zeroTime { // zero value
@@ -137,8 +162,16 @@ func (prc *AuctionProcessor) createEntry(auc *Auction) {
 func (prc *AuctionProcessor) applyEntry(auc *Auction) {
 	id := auc.Auc
 	e := prc.State.WorkSet[id]
+	e.State.Seenlist = append(e.State.Seenlist, util.TSStr(prc.SnapshotTime))
+
 	changed := false
 	if auc.Bid != e.State.LastBid {
+		e.State.Changlelist = append(e.State.Changlelist, Change{
+			TStamp: util.TSStr(prc.SnapshotTime),
+			Field:  FIELD_BID,
+			Before: fmt.Sprint(e.Entry.Bid),
+			After:  fmt.Sprint(auc.Bid),
+		})
 		e.State.LastBid = auc.Bid
 		e.Entry.Bid = auc.Bid
 		e.State.Raised = true
@@ -146,12 +179,41 @@ func (prc *AuctionProcessor) applyEntry(auc *Auction) {
 		changed = true
 	}
 	if auc.TimeLeft != e.Entry.TimeLeft {
+		e.State.Changlelist = append(e.State.Changlelist, Change{
+			TStamp: util.TSStr(prc.SnapshotTime),
+			Field:  FIELD_TIMELEFT,
+			Before: e.Entry.TimeLeft,
+			After:  auc.TimeLeft,
+		})
 		e.Entry.TimeLeft = auc.TimeLeft
-		_, e.State.DeadLine = guess_expiration(prc.SnapshotTime, e.Entry.TimeLeft)
+		_, new_deadline := guess_expiration(prc.SnapshotTime, e.Entry.TimeLeft)
+		e.State.Changlelist = append(e.State.Changlelist, Change{
+			TStamp: util.TSStr(prc.SnapshotTime),
+			Field:  FIELD_DEADLINE,
+			Before: util.TSStr(e.State.DeadLine),
+			After:  util.TSStr(new_deadline),
+		})
+		e.State.DeadLine = new_deadline
 		prc.NumAdjusts++
 		changed = true
 	}
 	if auc.Owner != e.Entry.Owner || auc.OwnerRealm != e.Entry.OwnerRealm {
+		if auc.OwnerRealm != e.Entry.OwnerRealm {
+			e.State.Changlelist = append(e.State.Changlelist, Change{
+				TStamp: util.TSStr(prc.SnapshotTime),
+				Field:  FIELD_OWNERREALM,
+				Before: e.Entry.OwnerRealm,
+				After:  auc.OwnerRealm,
+			})
+		}
+		if auc.Owner != e.Entry.Owner {
+			e.State.Changlelist = append(e.State.Changlelist, Change{
+				TStamp: util.TSStr(prc.SnapshotTime),
+				Field:  FIELD_OWNER,
+				Before: e.Entry.Owner,
+				After:  auc.Owner,
+			})
+		}
 		e.Entry.Owner = auc.Owner
 		e.Entry.OwnerRealm = auc.OwnerRealm
 		e.State.Moved = true
@@ -171,8 +233,10 @@ func (prc *AuctionProcessor) closeEntry(id int64) {
 	delete(prc.State.WorkSet, id)
 	var m AuctionMeta
 	m.Auc = e.Entry.Auc
-	m.Opened = e.State.Created
-	m.Closed = prc.SnapshotTime
+	m.Opened = util.TSStr(e.State.Created)
+	m.Closed = util.TSStr(prc.SnapshotTime)
+	m.Seenlist = e.State.Seenlist
+	m.Changelist = e.State.Changlelist
 	switch {
 	case e.State.DeadLine.Before(prc.SnapshotTime):
 		m.Result = "bought"
@@ -186,6 +250,7 @@ func (prc *AuctionProcessor) closeEntry(id int64) {
 		m.Result = "expired"
 		prc.NumExpired++
 	}
+	//log.Printf("auc:%#v, changelist:%#v\n", m.Auc, m.Changelist)
 	data_auc, err := json.Marshal(e.Entry)
 	data_meta, err := json.Marshal(m)
 	if err != nil {
@@ -278,6 +343,18 @@ func (prc *AuctionProcessor) SnapshotNeeded(snaptime time.Time) bool {
 func (prc *AuctionProcessor) StartSnapshot(snaptime time.Time) {
 	if prc.Started {
 		log.Panic("StartSnapshot inside snapshot session")
+	}
+	NewName := prc.cf.GetTimedName("state", prc.Realm, prc.SnapshotTime)
+	if prc.LastTimedStateName != NewName {
+		if prc.LastTimedStateName != "" {
+			log.Printf("Name changed. Save collected state.")
+			prc.SaveState()
+			log.Printf("Rename saved state to %s", prc.LastTimedStateName)
+			os.Rename(prc.StateFName, prc.LastTimedStateName)
+			log.Printf("Rename saved state to %s", prc.LastTimedStateName)
+		}
+		log.Printf("memorize state name %s", NewName)
+		prc.LastTimedStateName = NewName
 	}
 	prc.Started = true
 	prc.SnapshotTime = snaptime
