@@ -113,7 +113,7 @@ func main() {
 	} else {
 		for _, arg := range os.Args[1:] {
 			switch arg {
-			case "dfltcfg":
+			case "saveconfig":
 				(cf).Save(config.ConfigName() + ".default")
 			case "fetch":
 				DoFetch(cf)
@@ -122,7 +122,8 @@ func main() {
 			case "backup":
 				DoBackup(cf)
 			default:
-				log.Printf("unknown arg: \"%s\", must be one of [dfltcfg, fetch, parse, backup]", arg)
+				log.Printf("unknown arg: \"%s\", must be one of [saveconfig, fetch, parse, backup]", arg)
+				break
 			}
 		}
 	}
