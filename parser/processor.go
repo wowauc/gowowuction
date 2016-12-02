@@ -329,11 +329,12 @@ func (prc *AuctionProcessor) SaveState() {
 		zdata := util.Zip(data)
 		log.Printf("store gzipped (%d%%) data to %s...",
 			len(zdata)*100/len(data), prc.StateFName)
-		util.Store(prc.StateFName, zdata)
+		util.Store(prc.StateFName+".tmp", zdata)
 	} else {
 		log.Printf("store ungzipped data to %s...", prc.StateFName)
-		util.Store(prc.StateFName, data)
+		util.Store(prc.StateFName+".tmp", data)
 	}
+	util.Rotate(prc.StateFName)
 }
 
 func (prc *AuctionProcessor) SnapshotNeeded(snaptime time.Time) bool {
