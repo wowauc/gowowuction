@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	//	"path/filepath"
 	"time"
 
 	backup "github.com/wowauc/gowowuction/backup"
@@ -62,11 +63,19 @@ func DoFetch(cf *config.Config) {
 }
 
 func DoParse(cf *config.Config) {
-	log.Println("=== PARSE BEGIN ===")
+	log.Println("=== PARSE (LATEST) BEGIN ===")
 	for _, realm := range cf.RealmsList {
 		parser.ParseDir(cf, realm, false)
 	}
-	log.Println("=== PARSE END ===")
+	log.Println("=== PARSE (LATEST) END ===")
+}
+
+func DoParseAll(cf *config.Config) {
+	log.Println("=== PARSE (BACKUP + LATEST) BEGIN ===")
+	for _, realm := range cf.RealmsList {
+		parser.ParseComplex(cf, realm, false)
+	}
+	log.Println("=== PARSE (BACKUP + LATEST) END ===")
 }
 
 func DoBackup(cf *config.Config) {
@@ -83,6 +92,75 @@ func DoBackup(cf *config.Config) {
 	//backup.Backup(srcdir, dstdir, "20060102", ".zip", true, false)
 	backup.Backup(srcdir, dstdir, "20060102", ext, nolast, clean)
 	log.Println("=== BACKUP END ===")
+}
+
+func testName(fname string) {
+	realm, ts, good := util.Parse_FName(fname)
+	if good {
+		log.Printf("fname %#v -> %#v, %#v", fname, realm, ts)
+	} else {
+		log.Printf("fname %#v not parsed", fname)
+	}
+
+}
+
+func doTestProvider(prov parser.Provider) {
+	log.Println("=== TEST PROVIDER BEGIN ===")
+	entries := prov.List()
+	for _, entry := range entries {
+		data, err := prov.Get(entry)
+		if err != nil {
+			log.Printf("   %s doesn't got due error: %s", entry, err)
+			return
+		}
+		log.Printf("   %s with %d bytes", entry, len(data))
+		if ss, err := parser.ParseSnapshot(data); err != nil {
+			log.Printf("[!] parse error %s", err)
+		} else {
+			log.Printf("%d auctions in %d realms", len(ss.Auctions), len(ss.Realms))
+		}
+	}
+	log.Println("=== TEST PROVIDER END ===")
+}
+
+func doTestDirProvider(cf *config.Config) {
+	log.Println("=== TEST DIR PROVIDER BEGIN ===")
+	prov, err := parser.NewDirectoryProvider(cf.DownloadDirectory, util.Safe_Realm(cf.RealmsList[0]))
+	if err != nil {
+		log.Printf("[!] error: %s", err)
+		return
+	}
+	doTestProvider(prov)
+	log.Println("=== TEST DIR PROVIDER END ===")
+}
+
+func doTestZipDirProvider(cf *config.Config) {
+	log.Println("=== TEST ZIP DIRECTORY PROVIDER BEGIN ===")
+	prov, err := parser.NewDirectoryProvider(cf.DownloadDirectory, util.Safe_Realm(cf.RealmsList[0]))
+	if err != nil {
+		log.Printf("[!] error: %s", err)
+		return
+	}
+	doTestProvider(prov)
+	log.Println("=== TEST ZIP DIRECTORY PROVIDER END ===")
+}
+
+func DoTest(cf *config.Config) {
+	log.Println("=== TEST BEGIN ===")
+	/*
+		testName("")
+		testName("kaka")
+		testName("eu-alexstrasza-20161125_203855")
+		testName("eu-alexstrasza-20161125_203855.json")
+		testName("eu-alexstrasza-20161125_203855.json.gz")
+		testName("eu-alexstrasza-20161125_203855.json.xz")
+	*/
+	if len(cf.RealmsList) < 1 {
+		log.Println("there is no realms defined")
+		return
+	}
+	doTestDirProvider(cf)
+	//doTestZipDirProvider(cf)
 }
 
 func main() {
@@ -115,10 +193,14 @@ func main() {
 			switch arg {
 			case "saveconfig":
 				(cf).Save(config.ConfigName() + ".default")
+			case "test":
+				DoTest(cf)
 			case "fetch":
 				DoFetch(cf)
 			case "parse":
 				DoParse(cf)
+			case "parseall":
+				DoParseAll(cf)
 			case "backup":
 				DoBackup(cf)
 			default:

@@ -3,9 +3,6 @@ package parser
 import (
 	"fmt"
 	"log"
-	"path/filepath"
-	"sort"
-	"strings"
 
 	config "github.com/wowauc/gowowuction/config"
 	util "github.com/wowauc/gowowuction/util"
@@ -46,61 +43,37 @@ func ProcessSnapshot(ss *SnapshotData) {
  *    read & parse content
  ******************************************************************************/
 
-func ParseDir(cf *config.Config, realm string, safe bool) {
-	mask := cf.DownloadDirectory +
-		strings.Replace(realm, ":", "-", -1) + "-*.json.gz"
-	log.Printf("scan by mask %s ...", mask)
-	fnames, err := filepath.Glob(mask)
-	if err != nil {
-		log.Fatalln("glob failed:", err)
-	}
-	log.Printf("... %d entries collected", len(fnames))
-
-	var goodfnames []string
-
-	for _, fname := range fnames {
-		// realm, ts, good := util.Parse_FName(fname)
-		_, _, good := util.Parse_FName(fname)
-		if good {
-			// log.Printf("fname %s -> %s, %v", fname, realm, ts)
-			goodfnames = append(goodfnames, fname)
-		} else {
-			// log.Printf("skip fname %s", fname)
-		}
-	}
-	sort.Sort(util.ByBasename(goodfnames))
+func ParseFromProvider(cf *config.Config, realm string, safe bool, prov Provider) {
 	prc := new(AuctionProcessor)
 	prc.Init(cf, realm)
 	prc.LoadState()
 	badfiles := make(map[string]string)
 
-	for _, fname := range fnames {
+	for _, name := range prov.List() {
 		//log.Println(fname)
-		f_realm, f_time, ok := util.Parse_FName(fname)
+		f_realm, f_time, ok := util.Parse_FName(name)
 		if !ok {
-			log.Fatalf("not parsed correctly: %s", fname)
+			log.Printf("[!] not parsed correctly: %s", name)
 			continue
 		}
 		if f_realm != realm {
-			log.Fatalf("not my realm (%s != %s)", f_realm, realm)
+			log.Printf("not my realm (%s != %s)", f_realm, realm)
 			continue
 		}
 		if !prc.SnapshotNeeded(f_time) {
 			log.Printf("snapshot not needed: %s", util.TSStr(f_time))
 			continue
 		}
-		data, err := util.Load(fname)
+		data, err := prov.Get(name)
 		if err != nil {
-			//log.Fatalf("load error: %s", err)
-			log.Printf("%s LOAD ERROR: %s", fname, err)
-			badfiles[fname] = fmt.Sprint(err)
+			log.Printf("[!] %s LOAD ERROR: %s", name, err)
+			badfiles[name] = fmt.Sprint(err)
 			continue
 		}
 		ss, err := ParseSnapshot(data)
 		if err != nil {
-			//log.Fatalf("load error: %s", err)
-			log.Printf("%s PARSE ERROR: %s", fname, err)
-			badfiles[fname] = fmt.Sprint(err)
+			log.Printf("[!] %s PARSE ERROR: %s", name, err)
+			badfiles[name] = fmt.Sprint(err)
 			continue
 		}
 
@@ -124,4 +97,31 @@ func ParseDir(cf *config.Config, realm string, safe bool) {
 			log.Printf("%s: %s", fname, err)
 		}
 	}
+}
+
+func ParseDir(cf *config.Config, realm string, safe bool) {
+	p, err := NewDirectoryProvider(cf.DownloadDirectory, util.Safe_Realm(realm))
+	if err != nil {
+		log.Printf("[!] create directory provider failed: %s", err)
+		return
+	}
+	ParseFromProvider(cf, realm, safe, p)
+}
+
+func ParseComplex(cf *config.Config, realm string, safe bool) {
+	prefix := util.Safe_Realm(realm)
+	pzips, err := NewZipDirectoryProvider(cf.BackupDirectory, prefix)
+	if err != nil {
+		log.Printf("[!] create directory provider failed: %s", err)
+		return
+	}
+	pdir, err := NewDirectoryProvider(cf.DownloadDirectory, prefix)
+	if err != nil {
+		log.Printf("[!] create directory provider failed: %s", err)
+		return
+	}
+	p := NewCompositeProvider()
+	p.Add(pzips)
+	p.Add(pdir)
+	ParseFromProvider(cf, realm, safe, p)
 }

@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -201,6 +203,11 @@ func MakeZip(zipname string, fnames []string) (skiplist []string, err error) {
 
 	zipwriter := zip.NewWriter(zipfile)
 	defer zipwriter.Close()
+	// override zipper with same zipper but wuth best compression
+	zipwriter.RegisterCompressor(zip.Deflate,
+		func(out io.Writer) (io.WriteCloser, error) {
+			return flate.NewWriter(out, flate.BestCompression)
+		})
 
 	var md5sum bytes.Buffer
 	var sha1sum bytes.Buffer
@@ -261,7 +268,7 @@ func MakeZip(zipname string, fnames []string) (skiplist []string, err error) {
 
 func Backup(srcdir, dstdir, timeformat, ext string, completeOnly bool, doMove bool) {
 	// Backup("/opt/wowauc/download", "/opt/wowauc/backup", "20060102", ".tar.gz")
-	fnames, err := filepath.Glob(srcdir + "/*.json.gz")
+	fnames, err := filepath.Glob(srcdir + "/*.json*")
 	if err != nil {
 		log.Fatalln("glob failed:", err)
 	}
@@ -353,7 +360,7 @@ func Backup(srcdir, dstdir, timeformat, ext string, completeOnly bool, doMove bo
 				for _, fname := range fnames {
 					if skipped[fname] {
 						log.Printf("   %s is bad, so rename it", fname)
-						if err := os.Rename(fname, fname+".bad"); err != nil {
+						if err := os.Rename(fname, "!!!BAD-"+fname); err != nil {
 							log.Printf("[!] rename(%s) failed: %s", fname, err)
 						}
 					} else {

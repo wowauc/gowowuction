@@ -18,7 +18,7 @@ type DirectoryProvider struct {
 }
 
 func NewDirectoryProvider(dirname, prefix string) (provider *DirectoryProvider, err error) {
-	mask := dirname + prefix + "-*.json.gz"
+	mask := dirname + prefix + "-*.json*"
 	log.Printf("scan by mask %s ...", mask)
 	fnames, err := filepath.Glob(mask)
 	if err != nil {
@@ -30,13 +30,8 @@ func NewDirectoryProvider(dirname, prefix string) (provider *DirectoryProvider, 
 	provider = &DirectoryProvider{make(map[string]string)}
 
 	for _, fname := range fnames {
-		// realm, ts, good := util.Parse_FName(fname)
-		_, _, good := util.Parse_FName(fname)
-		if good {
-			// log.Printf("fname %s -> %s, %v", fname, realm, ts)
+		if _, _, good := util.Parse_FName(fname); good {
 			provider.entries[filepath.Base(fname)] = fname
-		} else {
-			// log.Printf("skip fname %s", fname)
 		}
 	}
 	return
