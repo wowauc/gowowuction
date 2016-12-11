@@ -1,0 +1,61 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "0byoCvrIQf5AfjzXkySApcyc1Ks=",
+			"path": "github.com/kr/pty",
+			"revision": "f7ee69f31298ecbe5d2b349c711e2547a617d398",
+			"revisionTime": "2015-10-07T23:04:24Z"
+		},
+		{
+			"checksumSHA1": "hvg17Pey3Qo1VxLTBKBXkmFfD8g=",
+			"path": "github.com/ulikunitz/xz",
+			"revision": "3e84f9193f6ec5cd5998463d64c88f798356b0c9",
+			"revisionTime": "2016-07-22T22:46:00Z"
+		},
+		{
+			"checksumSHA1": "dsrR2lzaNkbiABx3zCIen9NFWNs=",
+			"path": "github.com/ulikunitz/xz/internal/hash",
+			"revision": "3e84f9193f6ec5cd5998463d64c88f798356b0c9",
+			"revisionTime": "2016-07-22T22:46:00Z"
+		},
+		{
+			"checksumSHA1": "Q5akUO4rGX4IRz50QKoEzp8gKJY=",
+			"path": "github.com/ulikunitz/xz/internal/xlog",
+			"revision": "3e84f9193f6ec5cd5998463d64c88f798356b0c9",
+			"revisionTime": "2016-07-22T22:46:00Z"
+		},
+		{
+			"checksumSHA1": "zA+KSpsmwJ3+uZrRXKFBhqgx8a0=",
+			"path": "github.com/ulikunitz/xz/lzma",
+			"revision": "3e84f9193f6ec5cd5998463d64c88f798356b0c9",
+			"revisionTime": "2016-07-22T22:46:00Z"
+		},
+		{
+			"checksumSHA1": "dwOedwBJ1EIK9+S3t108Bx054Y8=",
+			"path": "golang.org/x/crypto/curve25519",
+			"revision": "9477e0b78b9ac3d0b03822fd95422e2fe07627cd",
+			"revisionTime": "2016-10-31T15:37:30Z"
+		},
+		{
+			"checksumSHA1": "wGb//LjBPNxYHqk+dcLo7BjPXK8=",
+			"path": "golang.org/x/crypto/ed25519",
+			"revision": "9477e0b78b9ac3d0b03822fd95422e2fe07627cd",
+			"revisionTime": "2016-10-31T15:37:30Z"
+		},
+		{
+			"checksumSHA1": "LXFcVx8I587SnWmKycSDEq9yvK8=",
+			"path": "golang.org/x/crypto/ed25519/internal/edwards25519",
+			"revision": "9477e0b78b9ac3d0b03822fd95422e2fe07627cd",
+			"revisionTime": "2016-10-31T15:37:30Z"
+		},
+		{
+			"checksumSHA1": "LlElMHeTC34ng8eHzjvtUhAgrr8=",
+			"path": "golang.org/x/crypto/ssh",
+			"revision": "9477e0b78b9ac3d0b03822fd95422e2fe07627cd",
+			"revisionTime": "2016-10-31T15:37:30Z"
+		}
+	],
+	"rootPath": "github.com/wowauc/gowowuction"
+}
